@@ -193,7 +193,7 @@ class EGO(SurrogateBasedApplication):
         args0 = (f_min - pred) / sig
         args1 = (f_min - pred) * norm.cdf(args0)
         args2 = sig * norm.pdf(args0)
-        if sig.size == 1 and sig == 0.0:   # can be use only if one point is computed
+        if sig.size == 1 and sig == 0.0:  # can be use only if one point is computed
             return 0.0
         ei = args1 + args2
         # penalize the points already evaluated with tunneling

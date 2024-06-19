@@ -1637,8 +1637,9 @@ class KrgBased(SurrogateModel):
             np.dot(self.optimal_par["Ft"].T, rt)
             - self._regression_types[self.options["poly"]](X_cont).T,
         )
+        # We have to re-interpolate in the case of noisy KRG
         if self.options["noise0"] | self.options["eval_noise"]:
-            A = self._sigma2_ri["sigma2"]
+            A = self._sigma2_ri(r)
         else:
             A = self.optimal_par["sigma2"]
         B = 1.0 - (rt**2.0).sum(axis=0) + (u**2.0).sum(axis=0)
@@ -1649,9 +1650,15 @@ class KrgBased(SurrogateModel):
         # machine precision: force to zero!
         s2[s2 < 0.0] = 0.0
         return s2
-    
-    def sigma2_ri(self):
-        pass
+
+    def sigma2_ri(self, r):
+        y = self.training_points[None][0][1]
+        n = y.shape[0]
+        y_centered = y - self.y_mean
+        C_noise = r + self.optimal_noise * np.eye(r.shape[0])
+        C_noise_inv = np.linalg.inv(C_noise)
+        sigma2_ri = (y_centered.T @ C_noise_inv @ r @ C_noise_inv @ y_centered) / n
+        return sigma2_ri
 
     def _predict_variance_derivatives(self, x, kx):
         """
