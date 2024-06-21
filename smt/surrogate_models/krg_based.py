@@ -880,6 +880,7 @@ class KrgBased(SurrogateModel):
             - A dictionary containing the requested Gaussian Process model
               parameters:
             sigma2
+            sigma2_ri
             Gaussian Process variance.
             beta
             Generalized least-squares regression weights for
@@ -959,7 +960,8 @@ class KrgBased(SurrogateModel):
             r = self._correlation_types[self.options["corr"]](theta, self.D).reshape(
                 -1, 1
             )
-        R = np.eye(self.nt) * (1.0 + nugget + noise)
+        R = np.eye(self.nt) * (1.0 + nugget)
+        R_noisy = np.eye(self.nt) * (1.0 + nugget + noise)
         R[self.ij[:, 0], self.ij[:, 1]] = r[:, 0]
         R[self.ij[:, 1], self.ij[:, 0]] = r[:, 0]
         # Cholesky decomposition of R
@@ -1012,6 +1014,23 @@ class KrgBased(SurrogateModel):
         reduced_likelihood_function_value = -(self.nt - p - q) * np.log10(
             sigma2.sum()
         ) - self.nt * np.log10(detR)
+        is_noisy = False # TODO
+        if is_noisy:
+            R_noisy = np.eye(self.nt) * (1.0 + nugget + noise)
+            y = self.y_norma*self.y_std**2+self.y_mean
+            rho_ri = y - np.dot(Ft, beta)
+            noise = self.self.optimal_noise # dimension ?
+            # Cholesky R
+            C = np.linalg.cholesky(R)
+            C_inv = np.linalg.inv(C)
+            R_noisy_inv = np.dot(C_inv.T, C_inv)
+            # Cholesky noisy_R
+            noisy_C = np.linalg.cholesky(R_noisy)
+            noisy_C_inv = np.linalg.inv(noisy_C)
+            R_noisy_inv = np.dot(noisy_C_inv.T, noisy_C_inv)
+            # formula
+            sigma2_ri = (rho_ri.T @ R_noisy_inv @ R @ R_noisy_inv @ rho_ri)/ (self.nt - p - q)
+        par["sigma2_ri"] = sigma2_ri
         par["sigma2"] = sigma2 * self.y_std**2.0
         par["beta"] = beta
         par["gamma"] = linalg.solve_triangular(C.T, rho)
@@ -1639,7 +1658,7 @@ class KrgBased(SurrogateModel):
         )
         # We have to re-interpolate in the case of noisy KRG
         if self.options["noise0"] | self.options["eval_noise"]:
-            A = self._sigma2_ri(r)
+            A = self.optimal_par["sigma2_ri"]
         else:
             A = self.optimal_par["sigma2"]
         B = 1.0 - (rt**2.0).sum(axis=0) + (u**2.0).sum(axis=0)
@@ -1650,15 +1669,6 @@ class KrgBased(SurrogateModel):
         # machine precision: force to zero!
         s2[s2 < 0.0] = 0.0
         return s2
-
-    def sigma2_ri(self, r):
-        y = self.training_points[None][0][1]
-        n = y.shape[0]
-        y_centered = y - self.y_mean
-        C_noise = r + self.optimal_noise * np.eye(r.shape[0])
-        C_noise_inv = np.linalg.inv(C_noise)
-        sigma2_ri = (y_centered.T @ C_noise_inv @ r @ C_noise_inv @ y_centered) / n
-        return sigma2_ri
 
     def _predict_variance_derivatives(self, x, kx):
         """
