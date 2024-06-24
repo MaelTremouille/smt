@@ -1033,7 +1033,7 @@ class KrgBased(SurrogateModel):
             R_noisy_inv = np.dot(noisy_C_inv.T, noisy_C_inv)
             # formula
             sigma2_ri = (rho_ri.T @ R_noisy_inv @ R @ R_noisy_inv @ rho_ri)/ (self.nt - p - q)
-        par["sigma2_ri"] = sigma2_ri
+        par["sigma2_ri"] = sigma2_ri[0]
         par["sigma2"] = sigma2 * self.y_std**2.0
         par["beta"] = beta
         par["gamma"] = linalg.solve_triangular(C.T, rho)
@@ -1661,8 +1661,8 @@ class KrgBased(SurrogateModel):
         )
         # We have to re-interpolate with a plug-in estimator
         # in the case of noisy KRG
-        eval_noise = self.options["eval_noise"] == [0.0]
-        if self.options["noise0"] or eval_noise:
+        is_noisy = self.options["noise0"] != [0.0] or self.options["eval_noise"]
+        if is_noisy:
             A = self.optimal_par["sigma2_ri"]
         else:
             A = self.optimal_par["sigma2"]
