@@ -1014,12 +1014,15 @@ class KrgBased(SurrogateModel):
         reduced_likelihood_function_value = -(self.nt - p - q) * np.log10(
             sigma2.sum()
         ) - self.nt * np.log10(detR)
-        is_noisy = False # TODO
+
+        eval_noise = self.options["eval_noise"]
+        noise0 = (self.options["noise0"] == [0.0])
+        # noisy KRG
+        is_noisy = eval_noise or noise0
         if is_noisy:
             R_noisy = np.eye(self.nt) * (1.0 + nugget + noise)
             y = self.y_norma*self.y_std**2+self.y_mean
             rho_ri = y - np.dot(Ft, beta)
-            noise = self.self.optimal_noise # dimension ?
             # Cholesky R
             C = np.linalg.cholesky(R)
             C_inv = np.linalg.inv(C)
@@ -1656,8 +1659,10 @@ class KrgBased(SurrogateModel):
             np.dot(self.optimal_par["Ft"].T, rt)
             - self._regression_types[self.options["poly"]](X_cont).T,
         )
-        # We have to re-interpolate in the case of noisy KRG
-        if self.options["noise0"] | self.options["eval_noise"]:
+        # We have to re-interpolate with a plug-in estimator
+        # in the case of noisy KRG
+        eval_noise = self.options["eval_noise"] == [0.0]
+        if self.options["noise0"] or eval_noise:
             A = self.optimal_par["sigma2_ri"]
         else:
             A = self.optimal_par["sigma2"]
