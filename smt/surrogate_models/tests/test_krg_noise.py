@@ -86,9 +86,7 @@ class Test(SMTestCase):
         yt = np.array([0.0, 1.0, 1.5, 1.1, 1.0])
 
         # defining the models
-        sm_noisy =KRG(
-            noise0=[1e-1], print_global=False
-        )
+        sm_noisy = KRG(noise0=[1e-1], print_global=False)
         # training the models
         sm_noisy.set_training_values(xt, yt)
         sm_noisy.train()
@@ -98,8 +96,10 @@ class Test(SMTestCase):
 
         # the variances with re-interpolation should be lower than without
         for var_free, var_noisy in zip(var_estim_free, var_estim_noisy):
-            self.assertTrue(var_noisy < var_free,
-                            f"Expected var_noisy < var_free but got {var_noisy} >= {var_free}")
+            self.assertTrue(
+                var_noisy < var_free,
+                f"Expected var_noisy < var_free but got {var_noisy} >= {var_free}",
+            )
 
 
 if __name__ == "__main__":

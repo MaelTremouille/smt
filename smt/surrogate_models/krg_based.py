@@ -1018,7 +1018,7 @@ class KrgBased(SurrogateModel):
         ) - self.nt * np.log10(detR_noisy)
 
         eval_noise = self.options["eval_noise"]
-        is_noise0 = (self.options["noise0"] != [0.0])
+        is_noise0 = self.options["noise0"] != [0.0]
         # noisy KRG
         sigma2_ri = None
         is_noisy = eval_noise or is_noise0
@@ -1587,7 +1587,9 @@ class KrgBased(SurrogateModel):
         y = (df_dx[kx] + np.dot(drx, gamma)) * self.y_std / self.X_scale[kx]
         return y
 
-    def predict_variances(self, x: np.ndarray, is_acting=None, is_ri = False) -> np.ndarray:
+    def predict_variances(
+        self, x: np.ndarray, is_acting=None, is_ri=False
+    ) -> np.ndarray:
         """
         Predict the variances at a set of points.
 
@@ -1616,10 +1618,12 @@ class KrgBased(SurrogateModel):
 
         n = x.shape[0]
         x2 = np.copy(x)
-        s2 = self._predict_variances(x2, is_acting=is_acting, is_ri = is_ri)
+        s2 = self._predict_variances(x2, is_acting=is_acting, is_ri=is_ri)
         return s2.reshape((n, self.ny))
 
-    def _predict_variances(self, x: np.ndarray, is_acting=None, is_ri = False) -> np.ndarray:
+    def _predict_variances(
+        self, x: np.ndarray, is_acting=None, is_ri=False
+    ) -> np.ndarray:
         """
         Provide uncertainty of the model at a set of points
         Parameters
