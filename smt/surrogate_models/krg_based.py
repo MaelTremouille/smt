@@ -1026,7 +1026,7 @@ class KrgBased(SurrogateModel):
         if is_noisy:
             Y_ri = self.y_norma
 
-            # Cholesky decomposition of R
+            # Cholesky decomposition of R and computation of its inverse
             C_bis = linalg.cholesky(R, lower=True)
             C_bis_inv = np.linalg.inv(C_bis)
             R_inv = np.dot(C_bis_inv.T, C_bis_inv)
@@ -1034,8 +1034,6 @@ class KrgBased(SurrogateModel):
             R_ri = R_noisy @ R_inv @ R_noisy
             # Cholesky decomposition of R_ri
             C_ri = np.linalg.cholesky(R_ri)
-            # C_inv_ri = np.linalg.inv(C_ri)
-            # R_ri = np.dot(C_inv_ri.T, C_inv_ri)
 
             # Get generalized least squared solution
             Ft_ri = linalg.solve_triangular(C_ri, self.F, lower=True)

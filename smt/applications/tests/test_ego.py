@@ -127,7 +127,7 @@ class TestEGO(SMTestCase):
 
         x_opt, y_opt, _, _, _ = ego.optimize(fun=TestEGO.function_test_1d)
 
-        self.assertAlmostEqual(18.9, x_opt.item(), delta=1)
+        self.assertAlmostEqual(18.9, x_opt.item(), delta=0.25)
         self.assertAlmostEqual(-15.1, y_opt.item(), delta=1)
 
     def test_function_test_1d_parallel(self):
