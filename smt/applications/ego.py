@@ -18,7 +18,7 @@ from smt.applications.mixed_integer import (
     MixedIntegerSamplingMethod,
 )
 from smt.sampling_methods import LHS
-from smt.surrogate_models import GEKPLS, GPX, KPLS, KPLSK, KRG, MGP
+from smt.surrogate_models import GEKPLS, GPX, KPLS, KPLSK, KRG, MGP, SGP
 from smt.utils.design_space import (
     BaseDesignSpace,
     DesignSpace,
@@ -100,6 +100,12 @@ class EGO(SurrogateBasedApplication):
         )
         declare("xdoe", None, types=np.ndarray, desc="Initial doe inputs")
         declare("ydoe", None, types=np.ndarray, desc="Initial doe outputs")
+        declare(
+            "inducing_points_idx",
+            None,
+            types=list[int],
+            desc="Initial inducing points (list of indices)",
+        )
         declare("verbose", False, types=bool, desc="Print computation information")
         declare(
             "enable_tunneling",
@@ -116,7 +122,7 @@ class EGO(SurrogateBasedApplication):
         declare(
             "surrogate",
             KRG(print_global=False),
-            types=(KRG, KPLS, KPLSK, GEKPLS, MGP, GPX),
+            types=(KRG, KPLS, KPLSK, GEKPLS, MGP, GPX, SGP),
             desc="SMT kriging-based surrogate model used internaly",
         )
         self.options.declare(
@@ -143,7 +149,8 @@ class EGO(SurrogateBasedApplication):
         [ndoe + n_iter, nx]: coord-x data
         [ndoe + n_iter, 1]: coord-y data
         """
-        x_data, y_data = self._setup_optimizer(fun)
+        is_sgp = isinstance(self.gpr, SGP)
+        x_data, y_data, Z = self._setup_optimizer(fun)
         n_iter = self.options["n_iter"]
         n_parallel = self.options["n_parallel"]
 
@@ -328,7 +335,7 @@ class EGO(SurrogateBasedApplication):
         else:  # to save time if y_doe is already given to EGO
             y_doe = ydoe
 
-        return x_doe, y_doe
+        return x_doe, y_doe  # , Z
 
     def _train_gpr(self, x_data, y_data):
         self.gpr.set_training_values(x_data, y_data)
