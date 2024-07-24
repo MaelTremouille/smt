@@ -11,6 +11,7 @@ import time
 import numpy as np
 from scipy.optimize import minimize
 from scipy.stats import norm
+from scipy.cluster.vq import kmeans
 
 from smt.applications.application import SurrogateBasedApplication
 from smt.applications.mixed_integer import (
@@ -125,6 +126,25 @@ class EGO(SurrogateBasedApplication):
             types=(KRG, KPLS, KPLSK, GEKPLS, MGP, GPX, SGP),
             desc="SMT kriging-based surrogate model used internaly",
         )
+        declare(
+            "inducing_idx",
+            None,
+            types=list[int],
+            desc="The indices of inducing points",
+        )
+        declare(
+            "n_inducing",
+            None,
+            types=int,
+            desc="The number of inducing points",
+        )
+        declare(
+            "inducing_method",
+            "random",
+            types=str,
+            values=["random", "kmeans"],
+            desc="The chosen method to induce points",
+        )
         self.options.declare(
             "random_state",
             types=(type(None), int, np.random.RandomState),
@@ -149,8 +169,7 @@ class EGO(SurrogateBasedApplication):
         [ndoe + n_iter, nx]: coord-x data
         [ndoe + n_iter, 1]: coord-y data
         """
-        is_sgp = isinstance(self.gpr, SGP)
-        x_data, y_data, Z = self._setup_optimizer(fun)
+        x_data, y_data, inducing_points = self._setup_optimizer(fun)
         n_iter = self.options["n_iter"]
         n_parallel = self.options["n_parallel"]
 
@@ -160,7 +179,7 @@ class EGO(SurrogateBasedApplication):
             for p in range(n_parallel):
                 # find next best x-coord point to evaluate
                 x_et_k, success = self._find_best_point(
-                    x_data, y_data, self.options["enable_tunneling"]
+                    x_data, y_data, inducing_points, self.options["enable_tunneling"]
                 )
                 if not success:
                     self.log(
@@ -335,18 +354,36 @@ class EGO(SurrogateBasedApplication):
         else:  # to save time if y_doe is already given to EGO
             y_doe = ydoe
 
-        return x_doe, y_doe  # , Z
+        is_sgp = isinstance(self.gpr, SGP)
+        if is_sgp:
+            inducing_idx = self.options["inducing_idx"]
+            n_inducing = None
+            if self.options["n_inducing"] is not None:
+                n_inducing = self.options["n_inducing"]
+            elif self.options["n_inducing"] is None and inducing_idx is None:
+                n_inducing = x_doe.shape[0] // 10
+            if n_inducing is not None:
+                if self.options["inducing_method"] == "random":
+                    inducing_points = self._set_random_idx(x_doe, y_doe, n_inducing)
+                else:
+                    inducing_points = self._set_kmeans_idx(x_doe, n_inducing)
 
-    def _train_gpr(self, x_data, y_data):
+        return x_doe, y_doe, inducing_points
+
+    def _train_gpr(self, x_data, y_data, inducing_points):
         self.gpr.set_training_values(x_data, y_data)
         if self.gpr.supports["training_derivatives"]:
             for kx in range(self.gpr.nx):
                 self.gpr.set_training_derivatives(
                     x_data, y_data[:, 1 + kx].reshape((y_data.shape[0], 1)), kx
                 )
+        if isinstance(self.options["surrogate"], SGP):
+            self.gpr.set_inducing_inputs(inducing_points)
         self.gpr.train()
 
-    def _find_best_point(self, x_data=None, y_data=None, enable_tunneling=False):
+    def _find_best_point(
+        self, x_data=None, y_data=None, inducing_points=None, enable_tunneling=False
+    ):
         """
         Function that analyse a set of x_data and y_data and give back the
         more interesting point to evaluates according to the selected criterion
@@ -364,7 +401,7 @@ class EGO(SurrogateBasedApplication):
         boolean: success flag
 
         """
-        self._train_gpr(x_data, y_data)
+        self._train_gpr(x_data, y_data, inducing_points)
 
         criterion = self.options["criterion"]
         n_start = self.options["n_start"]
@@ -474,3 +511,14 @@ class EGO(SurrogateBasedApplication):
         var = self.gpr.predict_variances(x)
 
         return pred + conf * np.sqrt(var)
+
+    def _set_random_idx(self, x_doe, n_inducing):
+        rng = self.options["random_state"]
+        inducing_idx = rng.permutation(x_doe.shape[0])[:n_inducing]
+        inducing_points = x_doe[inducing_idx].copy()
+        return inducing_points
+
+    def _set_kmeans_idx(self, x_doe, y_doe, n_inducing):
+        data = np.hstack((x_doe, y_doe))
+        inducing_points = kmeans(data, n_inducing)[0][:, :-1]
+        return inducing_points
