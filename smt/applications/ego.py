@@ -125,6 +125,11 @@ class EGO(SurrogateBasedApplication):
             types=(KRG, KPLS, KPLSK, GEKPLS, MGP, GPX, SGP),
             desc="SMT kriging-based surrogate model used internaly",
         )
+        self.options.declare(
+            "random_state",
+            types=(type(None), int, np.random.RandomState),
+            desc="Numpy RandomState object or seed number which controls random draws",
+        )
 
     def optimize(self, fun):
         """
